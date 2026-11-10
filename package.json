@@ -1,5 +1,21 @@
 {
 	"name": "catalogify",
+	"version": "1.0.0",
+	"description": "Move shared workspace dependencies into Bun or pnpm catalogs",
+	"author": "Amin Ya",
+	"license": "Apache-2.0",
+	"keywords": [
+		"catalog",
+		"workspace",
+		"monorepo",
+		"dependencies",
+		"dependency-management",
+		"dedupe",
+		"semver",
+		"bun",
+		"pnpm",
+		"cli"
+	],
 	"module": "dist/index.js",
 	"type": "module",
 	"scripts": {
@@ -21,7 +37,7 @@
 		"yaml": "^2.9.1"
 	},
 	"bin": {
-		"catalogify": "./dist/index.js"
+		"catalogify": "dist/index.js"
 	},
 	"files": [
 		"dist"
