@@ -1,0 +1,20 @@
+{
+  "extends": "@tsconfig/strictest/tsconfig.json",
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
+    "lib": ["ESNext"],
+    "target": "ESNext",
+    "module": "NodeNext",
+    "emitDecoratorMetadata": true,
+    "declaration": true,
+    "incremental": false,
+    "tsBuildInfoFile": ".tsbuildinfo",
+    "experimentalDecorators": true,
+    "moduleResolution": "nodenext",
+    "outDir": "dist",
+    "rootDir": "src",
+    "sourceMap": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*"]
+}
