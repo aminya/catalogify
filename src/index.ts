@@ -92,7 +92,7 @@ function select(specs: string[], mode: Mode): string | undefined {
 	)
 		return undefined;
 	const sorted = [...specs].sort((a, b) =>
-		semver.compare(semver.minVersion(b)!, semver.minVersion(a)!),
+		semver.compare(semver.minVersion(b) ?? b, semver.minVersion(a) ?? a),
 	);
 	if (mode === "all") return sorted[0];
 	if (mode === "major") {
@@ -101,13 +101,20 @@ function select(specs: string[], mode: Mode): string | undefined {
 	}
 	// Distribute OR clauses before joining ranges; minVersion detects an empty intersection.
 	let clauses = [""];
-	for (const spec of specs) {
+	for (const spec of new Set(specs)) {
+		const parts = new semver.Range(spec).range.split("||");
+		if (clauses.length * parts.length > 2048) return undefined;
 		clauses = clauses.flatMap((clause) =>
-			spec.split("||").map((part) => `${clause} ${part}`.trim()),
+			parts.map((part) => `${clause} ${part}`.trim()),
 		);
 	}
 	const intersection = clauses
-		.filter((clause) => semver.validRange(clause) && semver.minVersion(clause))
+		.filter(
+			(clause) =>
+				semver.validRange(clause) &&
+				semver.minVersion(clause) &&
+				specs.every((spec) => semver.subset(clause, spec)),
+		)
 		.join(" || ");
 	if (!intersection) return undefined;
 	return (
@@ -186,9 +193,14 @@ async function main(): Promise<void> {
 				.map(readManifest),
 		)),
 	];
+	const namedDefault = object(object(yamlData.catalogs)?.default);
+	if (manager === "pnpm" && yamlData.catalog !== undefined && namedDefault)
+		throw new Error(
+			"Both catalog and catalogs.default are defined; resolve the duplicate default catalog first.",
+		);
 	const existing =
 		manager === "pnpm"
-			? object(yamlData.catalog)
+			? (object(yamlData.catalog) ?? namedDefault)
 			: (object(rootManifest.data.catalog) ??
 				object(object(workspaces)?.catalog));
 	const existingCatalog = existing ?? {};
@@ -250,9 +262,10 @@ async function main(): Promise<void> {
 			);
 		if (doc.has("catalog") && !isMap(doc.get("catalog", true)))
 			throw new Error("pnpm catalog must be a mapping.");
-		if (!doc.has("catalog")) doc.set("catalog", {});
+		const catalogPath = namedDefault ? ["catalogs", "default"] : ["catalog"];
+		if (!namedDefault && !doc.has("catalog")) doc.set("catalog", {});
 		for (const [name, version] of changes)
-			doc.setIn(["catalog", name], version);
+			doc.setIn([...catalogPath, name], version);
 	}
 	if (!values["dry-run"]) {
 		await Promise.all(

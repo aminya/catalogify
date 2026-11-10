@@ -137,3 +137,24 @@ test("registry lookup failure leaves the dependency unchanged", async () => {
 		await rm(root, { recursive: true, force: true });
 	}
 });
+
+test("intersects hyphen ranges and respects catalogs.default in pnpm", async () => {
+	const root = await fixture("pnpm");
+	try {
+		await writeFile(
+			join(root, "pnpm-workspace.yaml"),
+			"packages:\n  - 'packages/*'\ncatalogs:\n  default:\n    compatible: '1.0.0 - 1.9.0'\n",
+		);
+		const result = await run(root);
+		expect(result.code).toBe(0);
+		const yaml = await readFile(join(root, "pnpm-workspace.yaml"), "utf8");
+		expect(yaml).toContain("catalogs:");
+		expect(yaml).toContain("default:");
+		expect(yaml).not.toContain("\ncatalog:");
+		expect(
+			(await json(root, "packages/a/package.json")).dependencies.compatible,
+		).toBe("catalog:");
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});

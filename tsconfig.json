@@ -4,6 +4,7 @@
 		"exactOptionalPropertyTypes": false,
 		"lib": ["ESNext"],
 		"target": "ESNext",
+		"noPropertyAccessFromIndexSignature": false,
 		"module": "NodeNext",
 		"emitDecoratorMetadata": true,
 		"declaration": true,
