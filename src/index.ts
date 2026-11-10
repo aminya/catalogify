@@ -141,7 +141,9 @@ async function latestVersion(name: string): Promise<string> {
 		throw new Error("registry returned an invalid version");
 	return version;
 }
-async function main(): Promise<void> {
+function parseOptions():
+	| { root: string; mode: Mode; pm?: string; dryRun: boolean }
+	| undefined {
 	const { values, positionals } = parseArgs({
 		allowPositionals: true,
 		options: {
@@ -155,16 +157,24 @@ async function main(): Promise<void> {
 		console.log(
 			"Usage: catalogify [workspace-directory] [--pm bun|pnpm|npm] [--dedupe semver|major|all] [--dry-run]",
 		);
-		return;
+		return undefined;
 	}
 	const mode = values.dedupe;
 	if (!isMode(mode))
 		throw new Error("Invalid --dedupe; use semver, major, or all.");
 	if (positionals.length > 1)
 		throw new Error("Provide at most one workspace directory.");
-	const root = resolve(positionals[0] ?? process.cwd());
+	return {
+		root: resolve(positionals[0] ?? process.cwd()),
+		mode,
+		pm: values.pm,
+		dryRun: values["dry-run"] ?? false,
+	};
+}
+
+async function loadWorkspace(root: string, pm?: string) {
 	const rootManifest = await readManifest(join(root, "package.json"));
-	const manager = values.pm ?? (await detect(root, rootManifest));
+	const manager = pm ?? (await detect(root, rootManifest));
 	if (manager !== "bun" && manager !== "pnpm" && manager !== "npm")
 		throw new Error("Invalid --pm; use bun, pnpm, or npm.");
 	if (manager === "npm")
@@ -208,6 +218,19 @@ async function main(): Promise<void> {
 			: (object(rootManifest.data.catalog) ??
 				object(object(workspaces)?.catalog));
 	const existingCatalog = existing ?? {};
+	return {
+		manager,
+		rootManifest,
+		workspaces,
+		yamlPath,
+		doc,
+		namedDefault,
+		existingCatalog,
+		manifests,
+	};
+}
+
+function collectOccurrences(manifests: Manifest[]): Map<string, Occurrence[]> {
 	const occurrences = new Map<string, Occurrence[]>();
 	for (const manifest of manifests)
 		for (const section of sections) {
@@ -220,6 +243,14 @@ async function main(): Promise<void> {
 				occurrences.set(name, list);
 			}
 		}
+	return occurrences;
+}
+
+async function migrateOccurrences(
+	occurrences: Map<string, Occurrence[]>,
+	existingCatalog: ObjectValue,
+	mode: Mode,
+): Promise<Map<string, string>> {
 	const changes = new Map<string, string>();
 	for (const [name, entries] of occurrences) {
 		if (new Set(entries.map((entry) => entry.manifest.path)).size < 2) continue;
@@ -252,6 +283,16 @@ async function main(): Promise<void> {
 			if (entry.spec !== "catalog:")
 				edit(entry.manifest, [entry.section, name], "catalog:");
 	}
+	return changes;
+}
+
+type Workspace = Awaited<ReturnType<typeof loadWorkspace>>;
+
+function updateCatalog(
+	workspace: Workspace,
+	changes: Map<string, string>,
+): void {
+	const { manager, rootManifest, workspaces, doc, namedDefault } = workspace;
 	if (manager === "bun") {
 		const catalogPath =
 			object(rootManifest.data.catalog) || !object(workspaces)?.catalog
@@ -271,21 +312,40 @@ async function main(): Promise<void> {
 		for (const [name, version] of changes)
 			doc.setIn([...catalogPath, name], version);
 	}
-	if (!values["dry-run"]) {
-		await Promise.all(
-			manifests
-				.filter((manifest) => manifest.text !== undefined)
-				.map(async (manifest) => {
-					const original = await readFile(manifest.path, "utf8");
-					if (original !== manifest.text)
-						await writeFile(manifest.path, manifest.text);
-				}),
-		);
-		if (manager === "pnpm" && changes.size)
-			await writeFile(yamlPath, String(doc));
-	}
+}
+
+async function writeWorkspace(
+	workspace: Workspace,
+	changes: Map<string, string>,
+): Promise<void> {
+	const { manifests, manager, yamlPath, doc } = workspace;
+	await Promise.all(
+		manifests
+			.filter((manifest) => manifest.text !== undefined)
+			.map(async (manifest) => {
+				const original = await readFile(manifest.path, "utf8");
+				if (original !== manifest.text)
+					await writeFile(manifest.path, manifest.text);
+			}),
+	);
+	if (manager === "pnpm" && changes.size)
+		await writeFile(yamlPath, String(doc));
+}
+
+async function main(): Promise<void> {
+	const options = parseOptions();
+	if (!options) return;
+	const workspace = await loadWorkspace(options.root, options.pm);
+	const occurrences = collectOccurrences(workspace.manifests);
+	const changes = await migrateOccurrences(
+		occurrences,
+		workspace.existingCatalog,
+		options.mode,
+	);
+	updateCatalog(workspace, changes);
+	if (!options.dryRun) await writeWorkspace(workspace, changes);
 	console.log(
-		`${values["dry-run"] ? "Would catalog" : "Cataloged"} ${changes.size} shared dependencies using ${manager}.`,
+		`${options.dryRun ? "Would catalog" : "Cataloged"} ${changes.size} shared dependencies using ${workspace.manager}.`,
 	);
 }
 
