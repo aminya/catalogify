@@ -3,6 +3,10 @@
 	"version": "1.0.0",
 	"description": "Move shared workspace dependencies into Bun or pnpm catalogs",
 	"author": "Amin Ya",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/aminya/catalogify.git"
+	},
 	"license": "Apache-2.0",
 	"keywords": [
 		"catalog",

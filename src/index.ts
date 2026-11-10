@@ -113,18 +113,31 @@ function select(specs: string[], mode: Mode): string | undefined {
 		);
 	}
 	const intersection = clauses
-		.filter(
-			(clause) =>
-				semver.validRange(clause) &&
-				semver.minVersion(clause) &&
-				specs.every((spec) => semver.subset(clause, spec)),
-		)
+		.map((clause) => compatibleClause(clause, specs))
+		.filter((clause): clause is string => clause !== undefined)
 		.join(" || ");
 	if (!intersection) return undefined;
 	return (
 		sorted.find((spec) => specs.every((other) => semver.subset(spec, other))) ??
 		intersection
 	);
+}
+function compatibleClause(clause: string, specs: string[]): string | undefined {
+	const minimum = semver.minVersion(clause);
+	if (!minimum) return undefined;
+	if (specs.every((spec) => semver.subset(clause, spec))) return clause;
+	// A combined range may admit a prerelease that an individual range excludes.
+	// Retry from its stable release, preserving the overlapping stable versions.
+	if (minimum.prerelease.length) {
+		const stable = `${minimum.major}.${minimum.minor}.${minimum.patch}`;
+		const stableClause = `${clause} >=${stable}`;
+		if (
+			semver.minVersion(stableClause) &&
+			specs.every((spec) => semver.subset(stableClause, spec))
+		)
+			return stableClause;
+	}
+	return undefined;
 }
 async function latestVersion(name: string): Promise<string> {
 	const registry =

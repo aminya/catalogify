@@ -114,7 +114,7 @@ test("major and all modes and dry run", async () => {
 	const root = await fixture();
 	const server = Bun.serve({
 		port: 0,
-		fetch: () => Response.json({ version: "9.0.0" }),
+		fetch: () => Response.json({ version: "9.0.0-dev.2" }),
 	});
 	const previousRegistry = process.env.npm_config_registry;
 	process.env.npm_config_registry = server.url.href;
@@ -124,7 +124,9 @@ test("major and all modes and dry run", async () => {
 		expect((await run(root, "--dedupe", "major")).code).toBe(0);
 		expect((await json(root, "package.json")).catalog.exact).toBe("^1.1.0");
 		expect((await run(root, "--dedupe", "all")).code).toBe(0);
-		expect((await json(root, "package.json")).catalog.different).toBe("9.0.0");
+		expect((await json(root, "package.json")).catalog.different).toBe(
+			"9.0.0-dev.2",
+		);
 	} finally {
 		server.stop();
 		if (previousRegistry === undefined) delete process.env.npm_config_registry;
@@ -189,6 +191,67 @@ test("intersects hyphen ranges and respects catalogs.default in pnpm", async () 
 		expect(
 			(await json(root, "packages/a/package.json")).dependencies.compatible,
 		).toBe("catalog:");
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+test("handles prerelease ranges without widening semver compatibility", async () => {
+	const root = await fixture();
+	try {
+		await writeFile(
+			join(root, "packages/a/package.json"),
+			JSON.stringify({
+				dependencies: {
+					beta: "^1.0.0-beta.1",
+					stableIntersection: ">=1.0.0-beta.1 <2",
+					incompatible: "1.0.0-beta.1",
+				},
+			}),
+		);
+		await writeFile(
+			join(root, "packages/b/package.json"),
+			JSON.stringify({
+				dependencies: {
+					beta: "^1.0.0-beta.2",
+					stableIntersection: ">=1.1.0-dev.1 <1.5",
+					incompatible: "1.0.0-beta.2",
+				},
+			}),
+		);
+		const result = await run(root);
+		expect(result.code).toBe(0);
+		expect(result.stderr).toContain("Skipped incompatible");
+		const catalog = (await json(root, "package.json")).catalog;
+		expect(catalog.beta).toBe("^1.0.0-beta.2");
+		const semver = await import("semver");
+		expect(semver.default.satisfies("1.1.0", catalog.stableIntersection)).toBe(
+			true,
+		);
+		expect(
+			semver.default.satisfies("1.1.0-dev.1", catalog.stableIntersection),
+		).toBe(false);
+		expect(
+			(await json(root, "packages/a/package.json")).dependencies.incompatible,
+		).toBe("1.0.0-beta.1");
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
+test("major mode selects the newest prerelease in the same major", async () => {
+	const root = await fixture();
+	try {
+		await writeFile(
+			join(root, "packages/a/package.json"),
+			JSON.stringify({ dependencies: { beta: "1.0.0-beta.1" } }),
+		);
+		await writeFile(
+			join(root, "packages/b/package.json"),
+			JSON.stringify({ dependencies: { beta: "1.0.0-rc.1" } }),
+		);
+		expect((await run(root, "--dedupe", "major")).code).toBe(0);
+		expect((await json(root, "package.json")).catalog.beta).toBe("1.0.0-rc.1");
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}

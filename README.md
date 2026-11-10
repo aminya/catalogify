@@ -19,4 +19,6 @@ Dependencies used by at least two workspace packages (including the root package
 - `major`: require the minimum version of each range to have the same major, then use the range with the highest minimum version. This can change accepted versions.
 - `all`: ignore major differences and use the latest version from the npm registry (or `npm_config_registry` when set). Registry lookup failures leave that dependency unchanged. This can introduce breaking changes.
 
+Semver ranges may include prereleases such as `1.0.0-beta.1` or `1.0.0-dev.2`. The default mode follows semver's prerelease inclusion rules; `major` may unify different prereleases in the same major. The `all` mode uses the registry's `latest` tag, which may point to a prerelease.
+
 `--dry-run` reports the number of candidates and warnings without writing files. Run your package manager's install afterward to update the lockfile and verify resolution. Review the diff before committing.
