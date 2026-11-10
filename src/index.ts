@@ -12,6 +12,10 @@ type Manifest = { path: string; text: string; data: ObjectValue };
 type Occurrence = { manifest: Manifest; section: string; spec: string };
 type Mode = "semver" | "major" | "all";
 type Manager = "bun" | "pnpm" | "npm";
+const modes: readonly Mode[] = ["semver", "major", "all"];
+function isMode(value: string): value is Mode {
+	return modes.some((mode) => mode === value);
+}
 const sections = [
 	"dependencies",
 	"devDependencies",
@@ -154,7 +158,7 @@ async function main(): Promise<void> {
 		return;
 	}
 	const mode = values.dedupe;
-	if (mode !== "semver" && mode !== "major" && mode !== "all")
+	if (!isMode(mode))
 		throw new Error("Invalid --dedupe; use semver, major, or all.");
 	if (positionals.length > 1)
 		throw new Error("Provide at most one workspace directory.");
