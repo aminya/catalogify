@@ -237,7 +237,7 @@ function collectOccurrences(manifests: Manifest[]): Map<string, Occurrence[]> {
 			const deps = object(manifest.data[section]);
 			if (!deps) continue;
 			for (const [name, spec] of Object.entries(deps)) {
-				if (typeof spec !== "string") continue;
+				if (typeof spec !== "string" || spec.startsWith("workspace:")) continue;
 				const list = occurrences.get(name) ?? [];
 				list.push({ manifest, section, spec });
 				occurrences.set(name, list);

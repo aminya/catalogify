@@ -75,6 +75,41 @@ test("compatible ranges are cataloged and incompatible or non-registry specs are
 	}
 });
 
+test("workspace references are ignored while regular versions can be cataloged", async () => {
+	const root = await fixture();
+	try {
+		await mkdir(join(root, "packages/c"));
+		await writeFile(
+			join(root, "packages/c/package.json"),
+			JSON.stringify({
+				dependencies: { compatible: "workspace:*", special: "workspace:^" },
+			}),
+		);
+		const result = await run(root);
+		expect(result.code).toBe(0);
+		expect(result.stderr).not.toContain("Skipped special");
+		expect(result.stderr).not.toContain("Skipped compatible");
+		expect((await json(root, "package.json")).catalog.compatible).toBe(
+			"^1.2.0",
+		);
+		expect(
+			(await json(root, "packages/a/package.json")).dependencies.compatible,
+		).toBe("catalog:");
+		expect(
+			(await json(root, "packages/b/package.json")).devDependencies.compatible,
+		).toBe("catalog:");
+		expect((await json(root, "packages/c/package.json")).dependencies).toEqual({
+			compatible: "workspace:*",
+			special: "workspace:^",
+		});
+		expect(
+			(await json(root, "packages/a/package.json")).dependencies.special,
+		).toBe("workspace:*");
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
+
 test("major and all modes and dry run", async () => {
 	const root = await fixture();
 	const server = Bun.serve({

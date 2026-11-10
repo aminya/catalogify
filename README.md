@@ -11,7 +11,7 @@ bunx catalogify /path/to/workspace
 
 `--pm` selects `bun` or `pnpm`; otherwise the root `packageManager` field or lockfile determines it. Bun's default catalog is stored in the root `package.json`, and pnpm's is stored in `pnpm-workspace.yaml`. npm does not support the `catalog:` protocol, so `--pm npm` fails without modifying files.
 
-Dependencies used by at least two workspace packages (including the root package) are considered across dependencies, devDependencies, peerDependencies and optionalDependencies. Existing default catalog entries are preserved and considered when choosing a version. Unsupported specifications such as `workspace:`, Git URLs, aliases, tags and named catalogs are skipped with a warning.
+Dependencies used by at least two workspace packages (including the root package) are considered across dependencies, devDependencies, peerDependencies and optionalDependencies. Existing default catalog entries are preserved and considered when choosing a version. `workspace:` references are ignored and left unchanged. Unsupported specifications such as Git URLs, aliases, tags and named catalogs are skipped with a warning.
 
 `--dedupe` controls which ranges may be combined:
 
