@@ -1,6 +1,6 @@
 {
 	"name": "catalogify",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"description": "Move shared workspace dependencies into Bun or pnpm catalogs",
 	"author": "Amin Ya",
 	"repository": {
